@@ -37,3 +37,5 @@ chain = prompt|llm|output_parser
 if question:
     response = chain.invoke(question)
     st.write(response)
+
+# add more functions here!
