@@ -7,9 +7,12 @@ import streamlit as st
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_ollama import OllamaLLM
-
+import subprocess
 
 model_name =  "gemma3:4b"
+
+subprocess.run(["ollama", "pull", model_name], check=True)
+
 
 # Set the page layout to wide
 st.set_page_config(layout="wide")
@@ -26,13 +29,13 @@ prompt = ChatPromptTemplate.from_messages(
         ('user','Questions{questions}')
     ])
 
+# ## Sidebar for prompt template
+# prompt = st.sidebar.text_input("Enter your Prompt Here:")
 
 # Streamlit Framework
 st.title("First GenAI App Using Ollama using Gemma3:4B")
 question = st.text_input("Ask your question ..")
 
-import subprocess
-subprocess.run(["ollama", "pull", model_name], check=True)
 
 # Loading the LLM Model 
 llm = OllamaLLM(model = model_name)
