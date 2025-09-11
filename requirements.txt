@@ -16,3 +16,4 @@ langchain_chroma
 langchain-openai
 streamlit
 langchain_groq
+langchain_ollama
