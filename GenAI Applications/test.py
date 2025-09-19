@@ -1,59 +1,52 @@
-import os
-from dotenv import load_dotenv
-load_dotenv()
-
 import streamlit as st
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_ollama import OllamaLLM
 import subprocess
 
-model_name =  "gemma3:4b"
+def get_installed_models():
+    """Fetch installed ollama models"""
+    result = subprocess.run(
+        ["ollama", "list"],
+        capture_output=True,
+        text=True
+    )
+    if result.returncode != 0:
+        st.error("Error fetching models from Ollama")
+        return []
 
-subprocess.run(["ollama", "pull", model_name], check=True)
+    lines = result.stdout.strip().split("\n")
+    models = []
+    for line in lines[1:]:  # Skip header
+        parts = line.split()
+        if parts:
+            models.append(parts[0])
+    return models
 
+def query_model(model, prompt):
+    """Run query on the selected ollama model"""
+    result = subprocess.run(
+        ["ollama", "run", model],
+        input=prompt,
+        capture_output=True,
+        text=True
+    )
+    if result.returncode != 0:
+        return f"Error: {result.stderr}"
+    return result.stdout.strip()
 
-# Set the page layout to wide
-st.set_page_config(layout="wide")
+# Streamlit UI
+st.title("🦙 Ollama Model Playground")
+st.write("Run queries on your locally installed Ollama models.")
 
-# Langsmith Tracing
-os.environ['LANGCHAIN_TRACING_V2'] = 'true'
-os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
-os.environ['LANGCHAIN_PROJECT'] = os.getenv('LANGCHAIN_PROJECT')
+# Get available models
+models = get_installed_models()
 
-## Prompt Template
-prompt = ChatPromptTemplate.from_messages(
-    [
-        ('system','You are an expert in answering. Answer the questions in simple to understand manner.'),
-        ('user','Questions{questions}')
-    ])
+if models:
+    selected_model = st.selectbox("Select a model", models)
+    user_query = st.text_area("Enter your query")
 
-## Sidebar for prompt template
-# prompt = st.sidebar.text_input("Enter your Prompt Here:")
-
-# Streamlit Framework
-st.title("First GenAI App Using Ollama using Gemma3:4B")
-question = st.text_input("Ask your question ..")
-
-
-
-# Loading the LLM Model 
-llm = OllamaLLM(model = model_name)
-
-# Output Parser
-output_parser = StrOutputParser()
-chain = prompt|llm|output_parser
-
-if question:
-    response = chain.invoke(question)
-    st.write(response)
-
-def clean_output(output):
-        # Remove leading/trailing whitespace and extra newlines
-        lines = [line.strip() for line in output.splitlines()]
-        cleaned_lines = [line for line in lines if line]  # Remove empty lines
-        return "\n".join(cleaned_lines)
-
-import subprocess
-st.write( clean_output(subprocess.run("ollama list",check=True,  capture_output=True, text=True)))
-# selected_model =
+    if st.button("Run Query"):
+        with st.spinner("Running model..."):
+            response = query_model(selected_model, user_query)
+        st.subheader("Response")
+        st.write(response)
+else:
+    st.warning("No models found. Please install Ollama models first.")
