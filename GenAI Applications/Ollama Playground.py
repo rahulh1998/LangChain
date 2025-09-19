@@ -60,6 +60,7 @@ else:
     st.sidebar.warning("⚠️ No models found. Please install Ollama models first.")
     st.stop()
 
+
 # Input area
 user_query = st.text_area("💬 Enter your query:", height=150, placeholder="Ask me anything...")
 

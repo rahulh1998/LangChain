@@ -26,28 +26,37 @@ def get_installed_models():
     return models
 
 
-def query_model(model, prompt):
-    """Run query on the selected Ollama model"""
-    result = subprocess.run(
+def stream_query(model, prompt):
+    """Stream response from the selected Ollama model"""
+    process = subprocess.Popen(
         ["ollama", "run", model],
-        input=prompt,
-        capture_output=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
         encoding="utf-8",
         errors="replace"
     )
-    if result.returncode != 0:
-        return f"❌ Error: {result.stderr}"
-    return result.stdout.strip()
+
+    # Send the prompt
+    process.stdin.write(prompt)
+    process.stdin.close()
+
+    # Yield output as it comes in
+    for line in process.stdout:
+        yield line
+
+    process.stdout.close()
+    process.wait()
 
 
 # ----------------------------
 # Streamlit UI
 # ----------------------------
-st.set_page_config(page_title="Ollama Chat", layout="wide")
+st.set_page_config(page_title="Ollama Multi-Model Chat", layout="wide")
 
-st.title("🦙 Ollama Chat")
-st.write("Chat with your locally installed Ollama models.")
+st.title("🦙 Ollama Multi-Model Chat (Streaming)")
+st.write("Chat with multiple Ollama models. Switch models anytime — each reply remembers which model generated it.")
 
 # Sidebar for model selection
 st.sidebar.header("⚙️ Settings")
@@ -55,7 +64,7 @@ models = get_installed_models()
 
 if models:
     selected_model = st.sidebar.selectbox("Select a model", models)
-    st.sidebar.success(f"✅ Using model: {selected_model}")
+    st.sidebar.success(f"✅ Current model: {selected_model}")
 else:
     st.sidebar.warning("⚠️ No models found. Please install Ollama models first.")
     st.stop()
@@ -77,7 +86,6 @@ for msg in st.session_state["messages"]:
             <div style="text-align:right; padding:8px; border-radius:10px; 
             background-color:#DCF8C6; margin:5px 0; display:inline-block; float:right; clear:both; max-width:75%;">
             <b>You:</b> {msg["content"]}
-            </div><div style="clear:both;"></div>
             """,
             unsafe_allow_html=True
         )
@@ -86,14 +94,13 @@ for msg in st.session_state["messages"]:
             f"""
             <div style="text-align:left; padding:8px; border-radius:10px; 
             background-color:#f1f0f0; margin:5px 0; display:inline-block; float:left; clear:both; max-width:75%;">
-            <b>{selected_model}:</b> {msg["content"]}
-            </div><div style="clear:both;"></div>
+            <b>{msg["model"]}:</b> {msg["content"]}
             """,
             unsafe_allow_html=True
         )
 
 # ----------------------------
-# Chat input (auto-send on Enter, clears after send)
+# Chat input with streaming response
 # ----------------------------
 user_query = st.chat_input("💬 Type your message...")
 
@@ -101,12 +108,26 @@ if user_query:
     # Add user message
     st.session_state["messages"].append({"role": "user", "content": user_query})
 
-    # Query model
+    # Placeholder for streaming response
     with st.spinner(f"Running `{selected_model}`..."):
-        response = query_model(selected_model, user_query)
+        response_placeholder = st.empty()
+        streamed_text = ""
 
-    # Add assistant response
-    st.session_state["messages"].append({"role": "assistant", "content": response})
+        for chunk in stream_query(selected_model, user_query):
+            streamed_text += chunk
+            response_placeholder.markdown(
+                f"""
+                <div style="text-align:left; padding:8px; border-radius:10px; 
+                background-color:#f1f0f0; margin:5px 0; display:inline-block; float:left; clear:both; max-width:75%;">
+                <b>{selected_model}:</b> {streamed_text}
+                """,
+                unsafe_allow_html=True
+            )
 
-    # Force refresh so input clears and new messages show
+    # Add final assistant response with model name
+    st.session_state["messages"].append(
+        {"role": "assistant", "content": streamed_text, "model": selected_model}
+    )
+
+    # Refresh so response stays in history
     st.rerun()
