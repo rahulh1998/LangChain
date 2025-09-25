@@ -1,1 +1,1 @@
-This repo contains all the work done in LangChain!
+This repo contains all the methods in LangChain!
